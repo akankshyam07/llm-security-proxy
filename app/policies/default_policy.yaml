@@ -1,0 +1,13 @@
+detectors:
+  request:
+    - type: secrets
+    - type: pii
+    - type: prompt_injection
+    - type: tool_allowlist
+      config:
+        allowlist:
+          - weather
+          - calculator
+  response:
+    - type: secrets
+    - type: pii
