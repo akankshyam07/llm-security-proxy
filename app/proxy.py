@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any, Dict
+from collections.abc import AsyncGenerator
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.config import Settings, get_settings
 from app.logging import LOGGER, redact_payload
@@ -32,16 +33,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
     @app.get("/health")
-    async def health() -> Dict[str, str]:
+    async def health() -> dict[str, str]:
         return {"status": "ok"}
 
     @app.post("/v1/chat/completions")
-    async def chat_completions(request: Request, settings: Settings = Depends(get_settings)):
+    async def chat_completions(request: Request, settings: Settings = Depends(get_settings)):  # noqa: B008
         request_id = str(uuid.uuid4())
-        payload: Dict[str, Any] = await request.json()
+        payload: dict[str, Any] = await request.json()
 
         decision = policy_engine.evaluate_request(payload, request_id=request_id)
-        start = time.perf_counter()
 
         if not decision.allowed:
             LOGGER.warning(
@@ -61,7 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=403,
                 content={
                     "error": {
-                        "code": decision.reason_codes[0],
+                        "codes": decision.reason_codes,
                         "message": "Request blocked by security policy",
                         "request_id": request_id,
                         "reasons": [finding.message for finding in decision.reasons],
@@ -80,10 +80,56 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if key.lower() not in {"host", "content-length"}
         }
 
-        upstream_url = urljoin(str(settings.upstream_base_url) + "/", settings.upstream_path.lstrip("/"))
+        upstream_url = urljoin(
+            str(settings.upstream_base_url) + "/", settings.upstream_path.lstrip("/")
+        )
+
+        # --- Streaming path ---
+        if payload.get("stream"):
+            async def stream_upstream() -> AsyncGenerator[bytes, None]:
+                try:
+                    async with client.stream(
+                        "POST",
+                        settings.upstream_path,
+                        json=payload,
+                        headers=forward_headers,
+                    ) as upstream:
+                        async for chunk in upstream.aiter_bytes():
+                            yield chunk
+                except httpx.HTTPError as exc:
+                    LOGGER.error(
+                        "upstream_error",
+                        extra={
+                            "extra_fields": {
+                                "request_id": request_id,
+                                "decision": "error",
+                                "error": str(exc),
+                                "upstream": upstream_url,
+                                "payload": redact_payload(payload),
+                            }
+                        },
+                    )
+
+            LOGGER.info(
+                "request_allowed_stream",
+                extra={
+                    "extra_fields": {
+                        "request_id": request_id,
+                        "decision": "allowed",
+                        "upstream": upstream_url,
+                        "payload": redact_payload(payload),
+                    }
+                },
+            )
+            return StreamingResponse(stream_upstream(), media_type="text/event-stream")
+
+        # --- Non-streaming path ---
+        start = time.perf_counter()
 
         try:
-            upstream_response = await client.post(settings.upstream_path, json=payload, headers=forward_headers)
+            upstream_response = await client.post(
+                settings.upstream_path, json=payload, headers=forward_headers
+            )
         except httpx.HTTPError as exc:  # pragma: no cover - network error path
             LOGGER.error(
                 "upstream_error",
@@ -97,7 +143,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     }
                 },
             )
-            raise HTTPException(status_code=502, detail="Upstream request failed")
+            raise HTTPException(status_code=502, detail="Upstream request failed") from None
 
         try:
             response_json = upstream_response.json()
@@ -123,10 +169,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         LOGGER.warning("response_blocked", extra={"extra_fields": log_fields})
         return JSONResponse(
-            status_code=502,
+            status_code=422,
             content={
                 "error": {
-                    "code": response_decision.reason_codes[0],
+                    "codes": response_decision.reason_codes,
                     "message": "Response blocked by security policy",
                     "request_id": request_id,
                     "reasons": [finding.message for finding in response_decision.reasons],

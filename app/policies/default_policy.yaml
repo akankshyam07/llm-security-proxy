@@ -3,11 +3,13 @@ detectors:
     - type: secrets
     - type: pii
     - type: prompt_injection
+      config:
+        use_ml: true
+        model: protectai/deberta-v3-base-prompt-injection-v2
+        threshold: 0.85
     - type: tool_allowlist
       config:
-        allowlist:
-          - weather
-          - calculator
+        allowlist: []
   response:
     - type: secrets
     - type: pii

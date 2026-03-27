@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any
 
 import yaml
 
@@ -17,17 +18,19 @@ class PolicyEngine:
         self.settings = get_settings()
         self.policy_path = Path(policy_path or self.settings.policy_path)
         self.config = self._load_policy()
-        self.request_detectors = self._build_detectors(self.config.get("detectors", {}).get("request", []))
+        self.request_detectors = self._build_detectors(
+            self.config.get("detectors", {}).get("request", [])
+        )
         self.response_detectors = self._build_detectors(
             self.config.get("detectors", {}).get("response", [])
         )
 
-    def _load_policy(self) -> Dict[str, Any]:
+    def _load_policy(self) -> dict[str, Any]:
         with self.policy_path.open("r", encoding="utf-8") as handle:
             return yaml.safe_load(handle) or {}
 
-    def _build_detectors(self, detector_configs: Iterable[Dict[str, Any]]) -> List[Detector]:
-        detectors: List[Detector] = []
+    def _build_detectors(self, detector_configs: Iterable[dict[str, Any]]) -> list[Detector]:
+        detectors: list[Detector] = []
         for entry in detector_configs:
             key = entry.get("type")
             config = entry.get("config", {})
@@ -38,8 +41,8 @@ class PolicyEngine:
             detectors.append(detector)
         return detectors
 
-    def evaluate_request(self, payload: Dict[str, Any], request_id: str) -> PolicyDecision:
-        findings: List[DetectorFinding] = []
+    def evaluate_request(self, payload: dict[str, Any], request_id: str) -> PolicyDecision:
+        findings: list[DetectorFinding] = []
         start = time.perf_counter()
         for detector in self.request_detectors:
             findings.extend(detector.check(payload))
@@ -53,7 +56,7 @@ class PolicyEngine:
             latency_ms=latency_ms,
         )
 
-    def evaluate_response(self, payload: Dict[str, Any], request_id: str) -> PolicyDecision:
+    def evaluate_response(self, payload: dict[str, Any], request_id: str) -> PolicyDecision:
         if not self.settings.enable_output_detection:
             return PolicyDecision(
                 allowed=True,
@@ -62,7 +65,7 @@ class PolicyEngine:
                 upstream_url=str(self.settings.upstream_base_url),
             )
 
-        findings: List[DetectorFinding] = []
+        findings: list[DetectorFinding] = []
         start = time.perf_counter()
         for detector in self.response_detectors:
             findings.extend(detector.check(payload))

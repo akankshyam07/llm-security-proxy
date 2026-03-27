@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Dict, List
+from typing import Any
 
 from app.models.events import DetectorFinding
 
@@ -11,27 +11,27 @@ class Detector(abc.ABC):
     name: str
     reason_code: str
 
-    def __init__(self, config: Dict[str, Any] | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         self.config = config or {}
 
     @abc.abstractmethod
-    def check(self, payload: Dict[str, Any]) -> List[DetectorFinding]:
+    def check(self, payload: dict[str, Any]) -> list[DetectorFinding]:
         """Inspect the payload and return any findings."""
 
 
 class DetectorRegistry:
     def __init__(self) -> None:
-        self._registry: Dict[str, type[Detector]] = {}
+        self._registry: dict[str, type[Detector]] = {}
 
     def register(self, key: str, detector_cls: type[Detector]) -> None:
         self._registry[key] = detector_cls
 
-    def create(self, key: str, config: Dict[str, Any] | None = None) -> Detector:
+    def create(self, key: str, config: dict[str, Any] | None = None) -> Detector:
         if key not in self._registry:
             raise KeyError(f"Unknown detector: {key}")
         return self._registry[key](config=config)
 
-    def available(self) -> List[str]:
+    def available(self) -> list[str]:
         return sorted(self._registry.keys())
 
 

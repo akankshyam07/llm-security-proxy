@@ -3,26 +3,13 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-from copy import deepcopy
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, Dict, Iterable, Mapping
+from typing import Any
+
+from app.detectors.patterns import PII_PATTERNS, SECRET_PATTERNS
 
 REDACTION_TOKEN = "[REDACTED]"
-
-# Patterns used both for detection and masking in logs
-SECRET_PATTERNS: Iterable[re.Pattern[str]] = [
-    re.compile(r"sk-[A-Za-z0-9]{16,}", re.IGNORECASE),
-    re.compile(r"AKIA[0-9A-Z]{16}"),
-    re.compile(r"(?i)Bearer\s+[A-Za-z0-9-_\.]{20,}"),
-    re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+"),
-]
-
-PII_PATTERNS: Iterable[re.Pattern[str]] = [
-    re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"),
-    re.compile(r"\b\d{3}-?\d{2}-?\d{4}\b"),
-    re.compile(r"\+?\d{1,2}[\s-]?(?:\(\d{3}\)|\d{3})[\s-]?\d{3}[\s-]?\d{4}"),
-]
 
 MESSAGE_FIELDS = {"content", "prompt", "messages", "input", "inputs", "query"}
 HEADER_FIELDS = {"authorization", "api-key", "x-api-key"}
@@ -56,7 +43,7 @@ def redact_payload(data: Any) -> Any:
         return None
 
     if isinstance(data, Mapping):
-        sanitized: Dict[str, Any] = {}
+        sanitized: dict[str, Any] = {}
         for key, value in data.items():
             lowered = key.lower()
             if lowered in HEADER_FIELDS:

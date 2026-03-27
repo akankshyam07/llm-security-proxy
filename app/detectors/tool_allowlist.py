@@ -1,7 +1,8 @@
 """Detector that blocks non-allowlisted tool/function calls."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from app.detectors.base import Detector, register_detector
 from app.models.events import DetectorFinding
@@ -12,13 +13,11 @@ class ToolAllowlistDetector(Detector):
     name = "tool_allowlist"
     reason_code = "TOOL_CALL_BLOCKED"
 
-    def check(self, payload: Dict[str, Any]) -> List[DetectorFinding]:
+    def check(self, payload: dict[str, Any]) -> list[DetectorFinding]:
         allowlist: Sequence[str] = self.config.get("allowlist", [])
-        if not allowlist:
-            return []
 
         # OpenAI-style tool_calls live under messages[].tool_calls[].function.name
-        requested_tools: List[str] = []
+        requested_tools: list[str] = []
 
         def walk(value: Any) -> None:
             if isinstance(value, dict):
