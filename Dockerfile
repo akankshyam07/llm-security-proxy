@@ -8,17 +8,18 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-
-# Install CPU-only torch first to avoid pulling the CUDA variant (~2GB vs ~700MB)
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+COPY requirements.txt requirements-ml.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download spacy model required by presidio-analyzer
+# Install CPU-only torch to avoid pulling the CUDA variant (~2GB vs ~700MB)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements-ml.txt
+
+# Download spacy NER model required by presidio-analyzer
 RUN python -m spacy download en_core_web_lg
 
-# Pre-download the prompt injection classifier so the first request isn't slow
+# Pre-bake the prompt injection classifier so the first request isn't slow
 RUN python -c "\
 from transformers import pipeline; \
 pipeline('text-classification', model='protectai/deberta-v3-base-prompt-injection-v2')"

@@ -5,13 +5,8 @@ pydantic>=2.0
 pydantic-settings>=2.0
 pyyaml>=6.0
 python-dotenv>=1.0
-# PII detection
+# PII detection — falls back to regex if spacy model is not downloaded
 presidio-analyzer>=2.2.0
 spacy>=3.7.0
 # Secret scanning (30+ plugin patterns)
 detect-secrets>=1.4.0
-# ML-based prompt injection detection
-# torch and transformers are heavy (~1-2 GB); CPU-only torch can be used:
-#   pip install torch --index-url https://download.pytorch.org/whl/cpu
-transformers>=4.40.0
-torch>=2.0.0

@@ -1,0 +1,13 @@
+# ML dependencies for the prompt injection classifier.
+# These are optional — all detectors fall back gracefully when not installed.
+#
+# For CPU-only (recommended unless you have a GPU):
+#   pip install -r requirements-ml.txt --index-url https://download.pytorch.org/whl/cpu
+#
+# After installing, pre-download the model weights:
+#   python -c "from transformers import pipeline; pipeline('text-classification', model='protectai/deberta-v3-base-prompt-injection-v2')"
+#
+# And the spacy NER model for Presidio:
+#   python -m spacy download en_core_web_lg
+transformers>=4.40.0
+torch>=2.0.0
